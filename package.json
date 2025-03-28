@@ -1,0 +1,20 @@
+{
+    "name": "ball-passing-game-visualization",
+    "version": "1.0.0",
+    "description": "传球游戏动态规划算法可视化",
+    "main": "index.html",
+    "scripts": {
+        "start": "serve ."
+    },
+    "keywords": [
+        "动态规划",
+        "算法可视化",
+        "传球游戏",
+        "教育工具"
+    ],
+    "author": "",
+    "license": "MIT",
+    "devDependencies": {
+        "serve": "^14.2.1"
+    }
+}

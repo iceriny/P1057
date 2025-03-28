@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>传球游戏 - 动态规划算法可视化</title>
+        <!-- TailwindCSS -->
+        <script src="https://cdn.tailwindcss.com"></script>
+        <!-- Preline UI -->
+        <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/preline/dist/preline.min.css"
+        />
+        <!-- Font Awesome -->
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+        />
+        <!-- GSAP动画库 -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+        <!-- 自定义样式 -->
+        <script>
+            tailwind.config = {
+                darkMode: "class",
+                theme: {
+                    extend: {
+                        colors: {
+                            primary: {
+                                50: "#f0f9ff",
+                                100: "#e0f2fe",
+                                200: "#bae6fd",
+                                300: "#7dd3fc",
+                                400: "#38bdf8",
+                                500: "#0ea5e9",
+                                600: "#0284c7",
+                                700: "#0369a1",
+                                800: "#075985",
+                                900: "#0c4a6e",
+                            },
+                        },
+                        fontFamily: {
+                            sans: ['"Inter"', "sans-serif"],
+                        },
+                    },
+                },
+            };
+        </script>
+        <style>
+            @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+
+            .fade-in {
+                animation: fadeIn 0.6s ease-in;
+            }
+
+            @keyframes fadeIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(10px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            .circle-student {
+                transition: all 0.3s ease;
+            }
+
+            .circle-student:hover {
+                transform: scale(1.1);
+                filter: brightness(1.1);
+            }
+
+            .ball {
+                transition: all 0.5s ease;
+            }
+        </style>
+    </head>
+    <body
+        class="bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-200 min-h-screen font-sans"
+    >
+        <!-- 导航栏 -->
+        <header class="bg-white shadow-sm dark:bg-gray-800 sticky top-0 z-50">
+            <div
+                class="container mx-auto px-4 py-4 flex justify-between items-center"
+            >
+                <h1
+                    class="text-xl font-bold text-primary-700 dark:text-primary-400"
+                >
+                    <i class="fas fa-circle-play mr-2"></i>传球游戏算法可视化
+                </h1>
+                <div class="flex items-center space-x-4">
+                    <button
+                        id="theme-toggle"
+                        class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                        <i class="fas fa-sun dark:hidden"></i>
+                        <i class="fas fa-moon hidden dark:block"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="container mx-auto px-4 py-8">
+            <!-- 题目描述卡片 -->
+            <section class="mb-10 fade-in">
+                <div
+                    class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6"
+                >
+                    <h2
+                        class="text-2xl font-bold mb-4 text-primary-700 dark:text-primary-400 flex items-center"
+                    >
+                        <i class="fas fa-book mr-3"></i>题目描述
+                    </h2>
+                    <div class="prose dark:prose-invert max-w-none">
+                        <p class="text-gray-700 dark:text-gray-300">
+                            上体育课的时候，小蛮的老师经常带着同学们一起做游戏。这次，老师带着同学们一起做传球游戏。
+                        </p>
+                        <p class="text-gray-700 dark:text-gray-300 mt-2">
+                            游戏规则是这样的：n
+                            个同学站成一个圆圈，其中的一个同学手里拿着一个球，当老师吹哨子时开始传球，每个同学可以把球传给自己左右的两个同学中的一个（左右任意），当老师再次吹哨子时，传球停止，此时，拿着球没有传出去的那个同学就是败者，要给大家表演一个节目。
+                        </p>
+                        <p class="text-gray-700 dark:text-gray-300 mt-2">
+                            聪明的小蛮提出一个有趣的问题：有多少种不同的传球方法可以使得从小蛮手里开始传的球，传了
+                            m
+                            次以后，又回到小蛮手里。两种传球方法被视作不同的方法，当且仅当这两种方法中，接到球的同学按接球顺序组成的序列是不同的。
+                        </p>
+                    </div>
+                </div>
+
+                <!-- 算法分析卡片 -->
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                    <h2
+                        class="text-2xl font-bold mb-4 text-primary-700 dark:text-primary-400 flex items-center"
+                    >
+                        <i class="fas fa-code mr-3"></i>算法解析
+                    </h2>
+                    <div class="prose dark:prose-invert max-w-none">
+                        <p class="text-gray-700 dark:text-gray-300">
+                            这是一个典型的<span
+                                class="font-semibold text-primary-600 dark:text-primary-400"
+                                >动态规划</span
+                            >问题。我们定义状态：
+                        </p>
+                        <div
+                            class="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg my-4"
+                        >
+                            <p class="font-mono">
+                                <span
+                                    class="text-primary-600 dark:text-primary-400"
+                                    >dp[i][j]</span
+                                >
+                                = 经过i次传球后，球在j号学生手中的方案数
+                            </p>
+                        </div>
+                        <p class="text-gray-700 dark:text-gray-300 mt-2">
+                            状态转移方程：
+                        </p>
+                        <div
+                            class="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg my-4"
+                        >
+                            <p class="font-mono">
+                                <span
+                                    class="text-primary-600 dark:text-primary-400"
+                                    >dp[i][j] = dp[i-1][left] +
+                                    dp[i-1][right]</span
+                                >
+                            </p>
+                            <p class="mt-2 text-gray-600 dark:text-gray-400">
+                                其中，<span class="text-blue-500 font-semibold"
+                                    >left</span
+                                >和<span class="text-green-500 font-semibold"
+                                    >right</span
+                                >分别是j的左右两个同学的编号（双指针）
+                            </p>
+                        </div>
+                        <p class="text-gray-700 dark:text-gray-300 mt-2">
+                            初始状态：dp[0][1] =
+                            1，表示开始时球在小蛮（1号学生）手中
+                        </p>
+                        <p class="text-gray-700 dark:text-gray-300 mt-2">
+                            最终答案：dp[m][1]，表示经过m次传球后，球回到小蛮手中的方案数
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 可视化部分 -->
+            <section class="mb-10 fade-in">
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                    <h2
+                        class="text-2xl font-bold mb-6 text-primary-700 dark:text-primary-400 flex items-center"
+                    >
+                        <i class="fas fa-play mr-3"></i>算法可视化
+                    </h2>
+
+                    <!-- 可视化说明 -->
+                    <div
+                        class="bg-primary-50 dark:bg-gray-700 p-4 rounded-lg mb-6"
+                    >
+                        <h3
+                            class="text-lg font-semibold mb-2 text-primary-800 dark:text-primary-300"
+                        >
+                            <i class="fas fa-info-circle mr-2"></i>可视化说明
+                        </h3>
+                        <ul
+                            class="text-gray-700 dark:text-gray-300 list-disc pl-5 space-y-1"
+                        >
+                            <li>
+                                点击<span class="font-medium">计算方案数</span
+                                >按钮将逐步展示动态规划过程
+                            </li>
+                            <li>
+                                蓝色标记表示<span
+                                    class="text-blue-500 font-medium"
+                                    >左邻居</span
+                                >，绿色标记表示<span
+                                    class="text-green-500 font-medium"
+                                    >右邻居</span
+                                >
+                            </li>
+                            <li>
+                                箭头显示状态转移路径，直观体现双指针与值的传递关系
+                            </li>
+                            <li>
+                                点击<span class="font-medium">动画演示</span
+                                >按钮将展示一条可能的传球路径
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- 控制面板 -->
+                    <div class="flex flex-wrap gap-4 mb-6">
+                        <div class="flex items-center">
+                            <label
+                                for="student-count"
+                                class="mr-2 text-gray-700 dark:text-gray-300"
+                                >学生数量(n):</label
+                            >
+                            <select
+                                id="student-count"
+                                class="bg-gray-100 dark:bg-gray-700 border-0 rounded-md px-3 py-2"
+                            >
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                                <option value="7">7</option>
+                            </select>
+                        </div>
+
+                        <div class="flex items-center">
+                            <label
+                                for="pass-count"
+                                class="mr-2 text-gray-700 dark:text-gray-300"
+                                >传球次数(m):</label
+                            >
+                            <select
+                                id="pass-count"
+                                class="bg-gray-100 dark:bg-gray-700 border-0 rounded-md px-3 py-2"
+                            >
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                            </select>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <button
+                                id="start-btn"
+                                class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md transition-all flex items-center"
+                            >
+                                <i class="fas fa-play mr-2"></i>完整演示
+                            </button>
+                            <button
+                                id="pause-btn"
+                                class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-md transition-all flex items-center"
+                                disabled
+                            >
+                                <i class="fas fa-pause mr-2"></i>暂停
+                            </button>
+                            <button
+                                id="prev-btn"
+                                class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-4 py-2 rounded-md transition-all flex items-center"
+                                disabled
+                            >
+                                <i class="fas fa-backward mr-2"></i>上一步
+                            </button>
+                            <button
+                                id="next-btn"
+                                class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-4 py-2 rounded-md transition-all flex items-center"
+                                disabled
+                            >
+                                <i class="fas fa-forward mr-2"></i>下一步
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 图例说明 -->
+                    <div class="flex flex-wrap gap-4 mb-6">
+                        <div class="flex items-center">
+                            <span
+                                class="inline-block w-3 h-3 bg-blue-500 rounded-full mr-1"
+                            ></span>
+                            <span
+                                class="text-sm text-gray-700 dark:text-gray-300"
+                                >左邻居</span
+                            >
+                        </div>
+                        <div class="flex items-center">
+                            <span
+                                class="inline-block w-3 h-3 bg-green-500 rounded-full mr-1"
+                            ></span>
+                            <span
+                                class="text-sm text-gray-700 dark:text-gray-300"
+                                >右邻居</span
+                            >
+                        </div>
+                        <div class="flex items-center">
+                            <span
+                                class="inline-block w-3 h-3 bg-yellow-400 rounded-full mr-1"
+                            ></span>
+                            <span
+                                class="text-sm text-gray-700 dark:text-gray-300"
+                                >当前状态</span
+                            >
+                        </div>
+                    </div>
+
+                    <!-- 可视化区域 -->
+                    <div class="flex flex-col md:flex-row gap-6">
+                        <!-- 圆圈图 -->
+                        <div class="w-full md:w-1/2">
+                            <div
+                                class="aspect-square relative border border-gray-200 dark:border-gray-700 rounded-lg"
+                                id="circle-container"
+                            >
+                                <!-- 学生圆圈将通过JS动态生成 -->
+                            </div>
+                        </div>
+
+                        <!-- DP表格 -->
+                        <div class="w-full md:w-1/2">
+                            <div class="overflow-x-auto">
+                                <h3
+                                    class="text-xl font-semibold mb-3 text-gray-700 dark:text-gray-300"
+                                >
+                                    动态规划表格
+                                </h3>
+                                <div id="dp-table-container" class="min-w-full">
+                                    <!-- DP表格将通过JS动态生成 -->
+                                </div>
+                            </div>
+
+                            <div
+                                class="mt-6 p-4 bg-primary-50 dark:bg-gray-700 rounded-lg"
+                            >
+                                <h3
+                                    class="text-lg font-semibold mb-2 text-primary-800 dark:text-primary-300"
+                                >
+                                    计算结果
+                                </h3>
+                                <p class="text-gray-700 dark:text-gray-300">
+                                    方案总数:
+                                    <span
+                                        id="result"
+                                        class="font-bold text-primary-600 dark:text-primary-400"
+                                        >-</span
+                                    >
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 源代码部分 -->
+            <section class="mb-10 fade-in">
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                    <h2
+                        class="text-2xl font-bold mb-4 text-primary-700 dark:text-primary-400 flex items-center"
+                    >
+                        <i class="fas fa-code mr-3"></i>源代码
+                    </h2>
+                    <pre
+                        class="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg overflow-x-auto font-mono text-sm"
+                    >
+<code class="language-cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main()
+{
+    int n, m;
+    cin >> n >> m;
+
+    // dp[i][j] 表示经过i次传球后，球在j号学生手中的方案数
+    long long dp[31][31] = {0};
+
+    // 初始状态：球在小蛮（1号学生）手中
+    dp[0][1] = 1;
+
+    // 动态规划过程
+    for (int i = 1; i <= m; i++)
+    {
+        for (int j = 1; j <= n; j++)
+        {
+            // 球可能从左边的同学传来
+            int left = j - 1;
+            if (left == 0)
+                left = n; // 如果是第1个同学的左边，实际上是第n个同学
+
+            // 球可能从右边的同学传来
+            int right = j + 1;
+            if (right == n + 1)
+                right = 1; // 如果是第n个同学的右边，实际上是第1个同学
+
+            // 状态转移
+            dp[i][j] = dp[i - 1][left] + dp[i - 1][right];
+        }
+    }
+
+    // 输出答案：经过m次传球后，球回到小蛮手中的方案数
+    cout << dp[m][1] << endl;
+
+    return 0;
+}</code>
+                </pre>
+                </div>
+            </section>
+        </main>
+
+        <footer class="bg-white dark:bg-gray-800 shadow-inner py-6">
+            <div
+                class="container mx-auto px-4 text-center text-gray-600 dark:text-gray-400"
+            >
+                <p>传球游戏动态规划算法可视化 &copy; 2023</p>
+            </div>
+        </footer>
+
+        <!-- Preline UI JS -->
+        <script src="https://cdn.jsdelivr.net/npm/preline/dist/preline.js"></script>
+        <!-- 自定义JS -->
+        <script src="script.js"></script>
+    </body>
+</html>
