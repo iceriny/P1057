@@ -290,14 +290,6 @@ function animateBallMovement(ball, fromStudent, toStudent, direction, label) {
     const arcHeight = direction === "left" ? -50 : -70;
     const midY = (startY + endY) / 2 + arcHeight;
 
-    // 为箭头创建唯一ID
-    const pathId = `ball-path-${direction}-${Math.random()
-        .toString(36)
-        .substr(2, 9)}`;
-    const arrowId = `arrow-${direction}-${Math.random()
-        .toString(36)
-        .substr(2, 9)}`;
-
     // 创建SVG路径
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute(
@@ -308,8 +300,8 @@ function animateBallMovement(ball, fromStudent, toStudent, direction, label) {
     path.setAttribute("stroke", direction === "left" ? "#3b82f6" : "#10b981");
     path.setAttribute("stroke-width", "3");
 
-    // 箭头指示 - 使用唯一ID
-    path.setAttribute("marker-end", `url(#${arrowId})`);
+    // 箭头指示
+    path.setAttribute("marker-end", `url(#${direction}-arrow)`);
 
     // 显示轨迹
     if (direction === "left") {
@@ -319,7 +311,10 @@ function animateBallMovement(ball, fromStudent, toStudent, direction, label) {
     }
 
     path.setAttribute("opacity", "0.8");
-    path.setAttribute("id", pathId);
+    path.setAttribute(
+        "id",
+        `ball-path-${direction}-` + Math.random().toString(36).substr(2, 9)
+    );
 
     // 添加到SVG
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -332,13 +327,13 @@ function animateBallMovement(ball, fromStudent, toStudent, direction, label) {
     svg.style.pointerEvents = "none";
     svg.style.zIndex = "5";
 
-    // 添加箭头标记 - 使用唯一ID
+    // 添加箭头标记
     const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
     const marker = document.createElementNS(
         "http://www.w3.org/2000/svg",
         "marker"
     );
-    marker.setAttribute("id", arrowId);
+    marker.setAttribute("id", `${direction}-arrow`);
     marker.setAttribute("markerWidth", "10");
     marker.setAttribute("markerHeight", "7");
     marker.setAttribute("refX", "7");
@@ -1036,10 +1031,17 @@ function drawArrow(fromCell, toCell, color, label) {
     const midX = (fromX + toX) / 2;
     const midY = (fromY + toY) / 2 - 20;
 
-    // 生成唯一的箭头ID
-    const arrowId = `arrow-${color}-${Math.random()
-        .toString(36)
-        .substring(2, 9)}`;
+    // 绘制路径
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute(
+        "d",
+        `M ${fromX},${fromY} Q ${midX},${midY} ${toX},${toY}`
+    );
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", color === "blue" ? "#3b82f6" : "#10b981");
+    path.setAttribute("stroke-width", "2");
+    path.setAttribute("marker-end", "url(#arrowhead)");
+    svg.appendChild(path);
 
     // 添加箭头标记
     const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
@@ -1047,7 +1049,7 @@ function drawArrow(fromCell, toCell, color, label) {
         "http://www.w3.org/2000/svg",
         "marker"
     );
-    marker.setAttribute("id", arrowId);
+    marker.setAttribute("id", "arrowhead");
     marker.setAttribute("markerWidth", "10");
     marker.setAttribute("markerHeight", "7");
     marker.setAttribute("refX", "9");
@@ -1064,18 +1066,6 @@ function drawArrow(fromCell, toCell, color, label) {
     marker.appendChild(polygon);
     defs.appendChild(marker);
     svg.appendChild(defs);
-
-    // 绘制路径
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute(
-        "d",
-        `M ${fromX},${fromY} Q ${midX},${midY} ${toX},${toY}`
-    );
-    path.setAttribute("fill", "none");
-    path.setAttribute("stroke", color === "blue" ? "#3b82f6" : "#10b981");
-    path.setAttribute("stroke-width", "2");
-    path.setAttribute("marker-end", `url(#${arrowId})`);
-    svg.appendChild(path);
 
     // 添加标签
     const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
