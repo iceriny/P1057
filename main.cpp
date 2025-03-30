@@ -1,13 +1,11 @@
 #include <iostream>
 using namespace std;
-
+// dp[i][j] 表示经过i次传球后，球在j号学生手中的方案数
+long long dp[31][31] = {0};
 int main()
 {
     int n, m;
     cin >> n >> m;
-
-    // dp[i][j] 表示经过i次传球后，球在j号学生手中的方案数
-    long long dp[31][31] = {0};
 
     // 初始状态：球在小蛮（1号学生）手中
     dp[0][1] = 1;

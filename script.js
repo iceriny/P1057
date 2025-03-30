@@ -7,7 +7,7 @@ const pauseBtn = document.getElementById("pause-btn");
 const prevBtn = document.getElementById("prev-btn");
 const nextBtn = document.getElementById("next-btn");
 const circleContainer = document.getElementById("circle-container");
-const dpTableContainer = document.getElementById("dp-table-container");
+let dpTableContainer = document.getElementById("dp-table-container"); // 使用let而不是const
 const resultElement = document.getElementById("result");
 
 // 初始配置
@@ -19,6 +19,15 @@ let currentStep = 0; // 当前演示步骤
 let animationInterval = null; // 动画定时器
 let isPaused = false; // 是否暂停
 
+// 在DOM加载后确保引用有效
+document.addEventListener("DOMContentLoaded", function () {
+    // 重新获取重要引用
+    if (!dpTableContainer) {
+        dpTableContainer = document.getElementById("dp-table-container");
+        console.log("DOMContentLoaded: 重新获取dpTableContainer引用");
+    }
+});
+
 // 主题切换
 themeToggle.addEventListener("click", () => {
     document.documentElement.classList.toggle("dark");
@@ -29,11 +38,13 @@ studentCountSelect.addEventListener("change", () => {
     studentCount = parseInt(studentCountSelect.value);
     resetVisualization();
     drawStudentCircle(studentCount);
+    initDPTable(); // 确保表格重新创建
 });
 
 passCountSelect.addEventListener("change", () => {
     passCount = parseInt(passCountSelect.value);
     resetVisualization();
+    initDPTable(); // 确保表格重新创建
 });
 
 startBtn.addEventListener("click", startFullDemo);
@@ -59,6 +70,12 @@ function startFullDemo() {
     // 初始化表格
     initDPTable();
 
+    // 预先计算所有DP值，确保表格数据完整
+    computeAllDPValues();
+
+    // 将计算的DP值填充到表格中
+    fillDPTable();
+
     // 添加初始小球
     addBall(1);
 
@@ -74,6 +91,35 @@ function startFullDemo() {
     }, 300);
 }
 
+// 预先计算所有DP值
+function computeAllDPValues() {
+    // 确保dp数组已正确初始化
+    if (dp.length === 0) {
+        dp = Array(passCount + 1)
+            .fill()
+            .map(() => Array(studentCount + 1).fill(0));
+        dp[0][1] = 1;
+        console.log("重新初始化dp数组");
+    }
+
+    // 计算所有DP值
+    for (let i = 1; i <= passCount; i++) {
+        for (let j = 1; j <= studentCount; j++) {
+            // 计算左右邻居
+            let left = j - 1;
+            if (left === 0) left = studentCount;
+
+            let right = j + 1;
+            if (right === studentCount + 1) right = 1;
+
+            // 计算DP值
+            dp[i][j] = dp[i - 1][left] + dp[i - 1][right];
+        }
+    }
+
+    console.log("DP计算完成:", dp);
+}
+
 // 开始自动播放
 function startAutoPlay() {
     if (animationInterval) {
@@ -86,6 +132,13 @@ function startAutoPlay() {
         } else if (currentStep >= passCount * studentCount) {
             clearInterval(animationInterval);
             resultElement.textContent = dp[passCount][1];
+
+            // 如果有多条路径，显示多条路径
+            if (dp[passCount][1] > 1) {
+                setTimeout(() => {
+                    showMultiplePaths();
+                }, 1000);
+            }
         }
     }, 2000); // 增加间隔到2000毫秒，使动画更容易观察
 }
@@ -140,12 +193,21 @@ function updateVisualization() {
     // 显示状态转移箭头
     showStateTransitionArrows(i, j, left, right);
 
-    // 计算并更新状态值
-    dp[i][j] = dp[i - 1][left] + dp[i - 1][right];
+    // 确保dp表格已经计算完成
+    if (dp[i] === undefined || dp[i][j] === undefined) {
+        console.error(`dp[${i}][${j}]未定义，重新计算DP值`);
+        computeAllDPValues();
+    }
 
     // 更新表格中的值
     const cell = document.getElementById(`dp-${i}-${j}`);
     if (cell) {
+        // 确保清除之前的公式
+        while (cell.firstChild) {
+            cell.removeChild(cell.firstChild);
+        }
+
+        // 设置主要文本内容
         cell.textContent = dp[i][j];
         cell.classList.add(
             "highlighted-cell",
@@ -158,6 +220,35 @@ function updateVisualization() {
         formula.className = "text-xs text-gray-500 dark:text-gray-400 mt-1";
         formula.innerHTML = `= ${dp[i - 1][left]} + ${dp[i - 1][right]}`;
         cell.appendChild(formula);
+
+        // 添加调试日志
+        console.log(`更新单元格(${i},${j}): ${dp[i][j]}`);
+    } else {
+        console.error(`未找到单元格: dp-${i}-${j}`);
+        // 尝试重新初始化表格
+        console.log("尝试重新初始化表格");
+        initDPTable();
+        // 再次尝试获取单元格
+        const newCell = document.getElementById(`dp-${i}-${j}`);
+        if (newCell) {
+            newCell.textContent = dp[i][j];
+            newCell.classList.add(
+                "highlighted-cell",
+                "bg-yellow-100",
+                "dark:bg-yellow-900"
+            );
+            console.log(`重新初始化后更新单元格成功: dp-${i}-${j}`);
+        }
+    }
+
+    // 当完成所有计算后，显示最终结果和多条路径
+    if (currentStep >= passCount * studentCount) {
+        resultElement.textContent = dp[passCount][1];
+
+        // 如果有多条路径，在计算完成后展示
+        if (dp[passCount][1] > 1) {
+            showMultiplePaths();
+        }
     }
 }
 
@@ -165,7 +256,7 @@ function updateVisualization() {
 function animateBallTransfer(i, j, left, right) {
     // 移除现有小球
     const existingBalls = document.querySelectorAll(".ball, .transfer-ball");
-    existingBalls.forEach((ball) => ball.remove());
+    existingBalls.forEach((ball) => safeRemove(ball));
 
     const currentStudent = document.getElementById(`student-${j}`);
     const leftStudent = document.getElementById(`student-${left}`);
@@ -235,19 +326,8 @@ function createBall(student, color) {
     const size = color === "yellow" ? "24px" : "20px";
 
     ball.className = `absolute rounded-full shadow-lg`;
-
-    // 设置不同颜色的球
-    if (color === "yellow") {
-        ball.classList.add("bg-yellow-400", "dark:bg-yellow-500");
-        ball.style.border = "2px solid #FCD34D";
-    } else if (color === "blue") {
-        ball.classList.add("bg-blue-500");
-        ball.style.border = "2px solid #3B82F6";
-    } else {
-        ball.classList.add("bg-green-500");
-        ball.style.border = "2px solid #10B981";
-    }
-
+    ball.style.backgroundColor = color;
+    ball.style.border = `2px solid ${color}`;
     ball.style.width = size;
     ball.style.height = size;
     ball.style.left = student.style.left;
@@ -256,19 +336,29 @@ function createBall(student, color) {
     ball.style.opacity = "0"; // 初始透明
     circleContainer.appendChild(ball);
 
-    // 添加出现动画
-    gsap.to(ball, {
-        opacity: 1,
-        scale: 1.2,
-        duration: 0.3,
-        ease: "back.out",
-        onComplete: () => {
-            gsap.to(ball, {
-                scale: 1,
-                duration: 0.2,
-            });
-        },
-    });
+    // 添加出现动画，确保元素在DOM中
+    try {
+        gsap.to(ball, {
+            opacity: 1,
+            scale: 1.2,
+            duration: 0.3,
+            ease: "back.out",
+            onComplete: () => {
+                try {
+                    gsap.to(ball, {
+                        scale: 1,
+                        duration: 0.2,
+                    });
+                } catch (e) {
+                    console.error("小球缩放动画错误:", e);
+                }
+            },
+        });
+    } catch (e) {
+        console.error("小球创建动画错误:", e);
+        // 确保即使动画失败小球也是可见的
+        ball.style.opacity = "1";
+    }
 
     return ball;
 }
@@ -372,15 +462,19 @@ function animateBallMovement(ball, fromStudent, toStudent, direction, label) {
     ball.style.left = startPoint.x + "px";
     ball.style.top = startPoint.y + "px";
 
-    // 开始动画
+    // 创建一个动画进度对象，供GSAP操作
+    const progressObj = { progress: 0 };
+
+    // 开始动画 - 修复GSAP fromTo调用
     gsap.fromTo(
+        progressObj, // 正确的目标对象
         { progress: 0 },
         {
             progress: 1,
             duration: 1.2, // 增加动画时间以更清晰显示
             ease: "power2.inOut",
             onUpdate: function () {
-                const progress = this.targets()[0].progress;
+                const progress = progressObj.progress;
                 const point = path.getPointAtLength(progress * pathLength);
                 ball.style.left = point.x + "px";
                 ball.style.top = point.y + "px";
@@ -393,35 +487,45 @@ function animateBallMovement(ball, fromStudent, toStudent, direction, label) {
                 }
             },
             onComplete: () => {
-                // 到达目标后，淡出动画
-                gsap.to(ball, {
-                    opacity: 0,
-                    duration: 0.3,
-                    onComplete: () => ball.remove(),
-                });
+                try {
+                    // 到达目标后，淡出动画
+                    gsap.to(ball, {
+                        opacity: 0,
+                        duration: 0.3,
+                        onComplete: () => {
+                            safeRemove(ball);
+                        },
+                    });
 
-                // 让目标位置的小球显示
-                gsap.to(ballClone, {
-                    opacity: 1,
-                    duration: 0.3,
-                });
+                    // 让目标位置的小球显示
+                    gsap.to(ballClone, {
+                        opacity: 1,
+                        duration: 0.3,
+                    });
 
-                // 轨迹淡出
-                gsap.to(svg, {
-                    opacity: 0,
-                    duration: 0.5,
-                    delay: 3, // 保持轨迹显示更长时间
-                    onComplete: () => svg.remove(),
-                });
-
-                // 标签淡出
-                if (label) {
-                    gsap.to(label, {
+                    // 轨迹淡出
+                    gsap.to(svg, {
                         opacity: 0,
                         duration: 0.5,
-                        delay: 3,
-                        onComplete: () => label.remove(),
+                        delay: 3, // 保持轨迹显示更长时间
+                        onComplete: () => {
+                            safeRemove(svg);
+                        },
                     });
+
+                    // 标签淡出
+                    if (label) {
+                        gsap.to(label, {
+                            opacity: 0,
+                            duration: 0.5,
+                            delay: 3,
+                            onComplete: () => {
+                                safeRemove(label);
+                            },
+                        });
+                    }
+                } catch (e) {
+                    console.error("动画完成回调错误:", e);
                 }
             },
         }
@@ -432,7 +536,21 @@ function animateBallMovement(ball, fromStudent, toStudent, direction, label) {
 function resetVisualization() {
     // 重置DP表格
     dp = [];
-    initDPTable();
+
+    // 重置dpTableContainer
+    if (dpTableContainer) {
+        // 保存容器引用
+        const container = dpTableContainer.parentNode;
+        // 清空容器
+        dpTableContainer.innerHTML = "";
+        // 确保引用没丢失
+        if (!document.getElementById("dp-table-container")) {
+            console.warn("dp-table-container引用丢失，重新获取");
+            dpTableContainer =
+                document.getElementById("dp-table-container") || container;
+        }
+    }
+
     resultElement.textContent = "-";
 
     // 重置控制状态
@@ -454,10 +572,21 @@ function resetVisualization() {
 
     // 重置小球
     const ball = document.querySelector(".ball");
-    if (ball) ball.remove();
+    if (ball) safeRemove(ball);
 
     // 移除所有高亮和箭头
     clearAllHighlights();
+}
+
+// 新增：安全移除DOM元素的辅助函数
+function safeRemove(element) {
+    if (element && element.parentNode) {
+        try {
+            element.parentNode.removeChild(element);
+        } catch (e) {
+            console.error("安全移除元素失败:", e);
+        }
+    }
 }
 
 // 清除所有高亮和箭头
@@ -467,7 +596,7 @@ function clearAllHighlights() {
             ".highlighted, .state-transition-arrow, .pointer-indicator, .ball-path-svg, .transfer-ball"
         )
         .forEach((el) => {
-            el.remove();
+            safeRemove(el);
         });
 
     // 移除标签元素
@@ -478,7 +607,7 @@ function clearAllHighlights() {
             el.textContent === "左邻居" ||
             el.textContent === "右邻居"
         ) {
-            el.remove();
+            safeRemove(el);
         }
     });
 
@@ -510,7 +639,7 @@ function clearAllHighlights() {
         // 移除状态转移公式
         const formula = el.querySelector(".text-xs");
         if (formula) {
-            formula.remove();
+            safeRemove(formula);
         }
     });
 }
@@ -654,13 +783,11 @@ function drawConnectionLines(n) {
     circleContainer.appendChild(svg);
 }
 
-// 添加小球到指定学生位置
+// 添加小球
 function addBall(studentId) {
     // 移除现有小球
-    const existingBalls = document.querySelectorAll(
-        ".ball:not(.transfer-ball)"
-    );
-    existingBalls.forEach((ball) => ball.remove());
+    const existingBall = document.querySelector(".ball");
+    if (existingBall) safeRemove(existingBall);
 
     const student = document.getElementById(`student-${studentId}`);
     if (!student) return;
@@ -679,20 +806,28 @@ function addBall(studentId) {
     circleContainer.appendChild(ball);
 
     // 添加出现动画
-    gsap.to(ball, {
-        opacity: 1,
-        scale: 1.2,
-        duration: 0.3,
-        ease: "back.out",
-        onComplete: () => {
-            gsap.to(ball, {
-                scale: 1,
-                duration: 0.2,
-            });
-        },
-    });
-
-    return ball;
+    try {
+        gsap.to(ball, {
+            opacity: 1,
+            scale: 1.2,
+            duration: 0.5,
+            ease: "back.out",
+            onComplete: () => {
+                try {
+                    gsap.to(ball, {
+                        scale: 1,
+                        duration: 0.2,
+                    });
+                } catch (e) {
+                    console.error("小球缩放动画错误:", e);
+                }
+            },
+        });
+    } catch (e) {
+        console.error("小球添加动画错误:", e);
+        // 确保即使动画失败小球也是可见的
+        ball.style.opacity = "1";
+    }
 }
 
 // 高亮左右邻居（双指针）
@@ -842,9 +977,27 @@ function getStudentAngle(studentId) {
 
 // 初始化DP表格结构
 function initDPTable() {
+    console.log(
+        "初始化DP表格，studentCount:",
+        studentCount,
+        "passCount:",
+        passCount
+    );
+
+    if (!dpTableContainer) {
+        console.error("找不到dpTableContainer元素!");
+        dpTableContainer = document.getElementById("dp-table-container");
+        if (!dpTableContainer) {
+            console.error("无法恢复dpTableContainer引用，创建新元素");
+            dpTableContainer = document.createElement("div");
+            dpTableContainer.id = "dp-table-container";
+            document.body.appendChild(dpTableContainer);
+        }
+    }
+
     dpTableContainer.innerHTML = "";
 
-    // 创建没有数据的表格结构
+    // 创建表格结构
     const table = document.createElement("table");
     table.className = "min-w-full border border-collapse text-center";
     table.id = "dp-table";
@@ -925,12 +1078,12 @@ function initDPTable() {
         th.textContent = `${i}次`;
         row.appendChild(th);
 
-        // 空的单元格，等待填充数据
+        // 空的单元格，初始显示0
         for (let j = 1; j <= studentCount; j++) {
             const td = document.createElement("td");
             td.className = "border border-gray-200 dark:border-gray-700 p-2";
             td.id = `dp-${i}-${j}`;
-            td.textContent = "?";
+            td.textContent = "0"; // 显示0作为初始值
 
             // 最后一行第一列特殊标记（最终结果）
             if (i === passCount && j === 1) {
@@ -949,6 +1102,14 @@ function initDPTable() {
 
     table.appendChild(tbody);
     dpTableContainer.appendChild(table);
+
+    // 添加调试日志，验证表格创建成功
+    console.log(`DP表格创建完成，共${passCount + 1}行，${studentCount + 1}列`);
+    console.log(
+        `检查单元格 dp-1-1: ${
+            document.getElementById("dp-1-1") ? "存在" : "不存在"
+        }`
+    );
 }
 
 // 高亮当前计算的状态及其依赖
@@ -1091,6 +1252,289 @@ function drawArrow(fromCell, toCell, color, label) {
     dpTableContainer.appendChild(svg);
 }
 
+// 显示多条可能的传球路径
+function showMultiplePaths() {
+    // 移除现有小球
+    const existingBalls = document.querySelectorAll(".ball, .transfer-ball");
+    existingBalls.forEach((ball) => safeRemove(ball));
+
+    // 移除现有路径
+    const existingPaths = document.querySelectorAll(".ball-path-svg");
+    existingPaths.forEach((path) => safeRemove(path));
+
+    // 创建多条不同颜色的路径
+    const pathColors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+
+    // 清除其他元素，让路径更清晰
+    clearAllHighlights();
+
+    console.log(`将要显示路径数量: ${dp[passCount][1]}`);
+
+    // 如果只有一条路径，也要展示
+    if (dp[passCount][1] === 1) {
+        setTimeout(() => {
+            showOnePath("#3b82f6");
+        }, 500);
+        return;
+    }
+
+    // 生成并显示多个路径（最多5条）
+    const maxPaths = Math.min(dp[passCount][1], 5);
+
+    for (let p = 0; p < maxPaths; p++) {
+        setTimeout(() => {
+            showRandomPath(pathColors[p % pathColors.length], p);
+        }, p * 2000); // 每条路径间隔2秒显示
+    }
+}
+
+// 显示唯一的一条路径（当只有一条路径时使用）
+function showOnePath(pathColor) {
+    // 创建新的SVG
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", `ball-path-svg path-single`);
+    svg.style.position = "absolute";
+    svg.style.width = "100%";
+    svg.style.height = "100%";
+    svg.style.top = "0";
+    svg.style.left = "0";
+    svg.style.pointerEvents = "none";
+    svg.style.zIndex = "10";
+
+    // 添加到容器
+    circleContainer.appendChild(svg);
+
+    // 固定路径：从小蛮开始，每次只能往一个方向走
+    let currentStudent = 1; // 小蛮
+    const path = [1]; // 起始为小蛮
+
+    // 根据传球次数，交替向左右两边传球，确保最后回到1
+    let goLeft = true; // 第一步向左传
+
+    for (let i = 1; i <= passCount; i++) {
+        // 获取左右邻居
+        let left = currentStudent - 1;
+        if (left === 0) left = studentCount;
+
+        let right = currentStudent + 1;
+        if (right === studentCount + 1) right = 1;
+
+        // 选择方向
+        let nextStudent;
+        if (i === passCount) {
+            // 最后一步必须回到小蛮
+            nextStudent = 1;
+        } else if (goLeft) {
+            nextStudent = left;
+        } else {
+            nextStudent = right;
+        }
+
+        // 记录并切换学生
+        path.push(nextStudent);
+        currentStudent = nextStudent;
+
+        // 交替方向
+        goLeft = !goLeft;
+    }
+
+    // 反转路径顺序，从最后开始绘制回到小蛮
+    for (let i = path.length - 1; i > 0; i--) {
+        const from = path[i];
+        const to = path[i - 1];
+
+        // 获取DOM元素
+        const fromStudent = document.getElementById(`student-${from}`);
+        const toStudent = document.getElementById(`student-${to}`);
+
+        if (fromStudent && toStudent) {
+            // 绘制路径
+            drawPathBetweenStudents(svg, fromStudent, toStudent, pathColor, i);
+        }
+    }
+}
+
+// 在两个学生之间绘制路径
+function drawPathBetweenStudents(svg, fromStudent, toStudent, color, index) {
+    const fromRect = fromStudent.getBoundingClientRect();
+    const toRect = toStudent.getBoundingClientRect();
+    const containerRect = circleContainer.getBoundingClientRect();
+
+    const startX = (fromRect.left + fromRect.right) / 2 - containerRect.left;
+    const startY = (fromRect.top + fromRect.bottom) / 2 - containerRect.top;
+    const endX = (toRect.left + toRect.right) / 2 - containerRect.left;
+    const endY = (toRect.top + toRect.bottom) / 2 - containerRect.top;
+
+    // 计算控制点
+    const midX = (startX + endX) / 2;
+    const midY = (startY + endY) / 2 - 40;
+
+    // 创建路径
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute(
+        "d",
+        `M ${startX},${startY} Q ${midX},${midY} ${endX},${endY}`
+    );
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", color);
+    path.setAttribute("stroke-width", "3");
+    path.setAttribute("stroke-dasharray", "5,3");
+    path.setAttribute("opacity", "0");
+
+    // 添加到SVG
+    svg.appendChild(path);
+
+    // 动画显示路径
+    gsap.to(path, {
+        opacity: 0.8,
+        duration: 0.5,
+        delay: (passCount - index) * 0.3, // 按顺序显示
+    });
+
+    // 创建小球
+    const ball = document.createElement("div");
+    ball.className = `absolute rounded-full shadow-lg`;
+    ball.style.backgroundColor = color;
+    ball.style.border = `2px solid ${color}`;
+    ball.style.width = "18px";
+    ball.style.height = "18px";
+    ball.style.left = startX + "px";
+    ball.style.top = startY + "px";
+    ball.style.transform = "translate(-50%, -50%)";
+    ball.style.opacity = "0";
+    ball.style.zIndex = "25";
+    circleContainer.appendChild(ball);
+
+    // 沿路径动画
+    const pathLength = path.getTotalLength();
+
+    // 创建进度对象
+    const progressObj = { progress: 0 };
+
+    gsap.fromTo(
+        progressObj,
+        { progress: 0 },
+        {
+            progress: 1,
+            duration: 1,
+            delay: (passCount - index) * 0.3,
+            ease: "power2.inOut",
+            onStart: function () {
+                gsap.to(ball, { opacity: 1, duration: 0.2 });
+            },
+            onUpdate: function () {
+                const progress = progressObj.progress;
+                const point = path.getPointAtLength(progress * pathLength);
+                ball.style.left = point.x + "px";
+                ball.style.top = point.y + "px";
+            },
+            onComplete: () => {
+                try {
+                    gsap.to(ball, {
+                        opacity: 0,
+                        duration: 0.2,
+                        delay: 0.3,
+                        onComplete: () => {
+                            safeRemove(ball);
+                        },
+                    });
+                } catch (e) {
+                    console.error("球体动画完成回调错误:", e);
+                }
+            },
+        }
+    );
+}
+
+// 显示一条随机的合法传球路径
+function showRandomPath(pathColor, pathIndex) {
+    // 创建新的SVG用于路径
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", `ball-path-svg path-${pathIndex}`);
+    svg.style.position = "absolute";
+    svg.style.width = "100%";
+    svg.style.height = "100%";
+    svg.style.top = "0";
+    svg.style.left = "0";
+    svg.style.pointerEvents = "none";
+    svg.style.zIndex = `${10 + pathIndex}`;
+
+    // 添加到容器
+    circleContainer.appendChild(svg);
+
+    // 生成一条随机路径
+    let currentStudent = 1; // 从小蛮开始
+    const path = [];
+    path.push(currentStudent);
+
+    // 根据DP表生成合法路径
+    for (let i = 1; i <= passCount; i++) {
+        // 获取当前学生的左右邻居
+        let left = currentStudent - 1;
+        if (left === 0) left = studentCount;
+
+        let right = currentStudent + 1;
+        if (right === studentCount + 1) right = 1;
+
+        // 根据DP值随机选择左或右
+        const leftProb = dp[passCount - i][left];
+        const rightProb = dp[passCount - i][right];
+        const total = leftProb + rightProb;
+
+        // 随机选择方向，但考虑概率权重
+        let nextStudent;
+        if (Math.random() * total < leftProb) {
+            nextStudent = left;
+        } else {
+            nextStudent = right;
+        }
+
+        // 记录选择
+        path.push(nextStudent);
+        currentStudent = nextStudent;
+    }
+
+    // 逆序绘制路径
+    for (let i = path.length - 1; i > 0; i--) {
+        const from = path[i];
+        const to = path[i - 1];
+
+        // 获取DOM元素
+        const fromStudent = document.getElementById(`student-${from}`);
+        const toStudent = document.getElementById(`student-${to}`);
+
+        if (fromStudent && toStudent) {
+            // 绘制路径
+            drawPathBetweenStudents(svg, fromStudent, toStudent, pathColor, i);
+        }
+    }
+}
+
+// 新增：将计算好的DP值填充到表格中
+function fillDPTable() {
+    // 填充表格初始行 (i=0)
+    for (let j = 1; j <= studentCount; j++) {
+        const cell = document.getElementById(`dp-0-${j}`);
+        if (cell) {
+            cell.textContent = dp[0][j];
+        }
+    }
+
+    // 填充其他行
+    for (let i = 1; i <= passCount; i++) {
+        for (let j = 1; j <= studentCount; j++) {
+            const cell = document.getElementById(`dp-${i}-${j}`);
+            if (cell) {
+                cell.textContent = dp[i][j];
+            } else {
+                console.error(`未找到单元格填充: dp-${i}-${j}`);
+            }
+        }
+    }
+
+    console.log("DP表格填充完成");
+}
+
 // 确保页面加载后执行init函数
 (function () {
     console.log("立即执行函数，确保初始化");
@@ -1138,4 +1582,96 @@ function init() {
         passCountSelect.appendChild(option);
     }
     passCountSelect.value = passCount;
+
+    // 添加调试按钮
+    addDebugButton();
+}
+
+// 添加调试按钮
+function addDebugButton() {
+    // 检查是否已存在调试按钮
+    if (document.getElementById("debug-btn")) return;
+
+    const debugBtn = document.createElement("button");
+    debugBtn.id = "debug-btn";
+    debugBtn.className =
+        "bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded ml-2";
+    debugBtn.innerHTML = '<i class="fas fa-bug mr-2"></i>调试表格';
+
+    // 添加到控制按钮旁边
+    const controlContainer = document.querySelector(".controls");
+    if (controlContainer) {
+        controlContainer.appendChild(debugBtn);
+
+        // 添加点击事件
+        debugBtn.addEventListener("click", debugTableState);
+    }
+}
+
+// 调试表格状态
+function debugTableState() {
+    console.group("表格状态调试");
+
+    // 检查DOM元素
+    console.log("dpTableContainer:", dpTableContainer ? "存在" : "不存在");
+    console.log(
+        "dp-table元素:",
+        document.getElementById("dp-table") ? "存在" : "不存在"
+    );
+
+    // 检查dp数组
+    console.log("dp数组:", dp);
+
+    // 检查表格单元格是否存在
+    let cellCount = 0;
+    let missingCells = [];
+
+    for (let i = 0; i <= passCount; i++) {
+        for (let j = 1; j <= studentCount; j++) {
+            const cellId = `dp-${i}-${j}`;
+            const cell = document.getElementById(cellId);
+            if (cell) {
+                cellCount++;
+            } else {
+                missingCells.push(cellId);
+            }
+        }
+    }
+
+    console.log(
+        `找到${cellCount}个表格单元格，应有${(passCount + 1) * studentCount}个`
+    );
+    if (missingCells.length > 0) {
+        console.warn("缺失的单元格:", missingCells);
+    }
+
+    // 检查表格内容与dp数组是否一致
+    let mismatchCount = 0;
+    for (let i = 0; i <= passCount; i++) {
+        for (let j = 1; j <= studentCount; j++) {
+            const cell = document.getElementById(`dp-${i}-${j}`);
+            if (cell && dp[i] && dp[i][j] !== undefined) {
+                const cellValue = cell.textContent.split("=")[0].trim(); // 去除公式部分
+                if (cellValue !== dp[i][j].toString()) {
+                    console.warn(
+                        `单元格dp-${i}-${j}值不匹配: 表格值=${cellValue}, dp值=${dp[i][j]}`
+                    );
+                    mismatchCount++;
+                }
+            }
+        }
+    }
+
+    console.log(`发现${mismatchCount}个值不匹配的单元格`);
+
+    // 如果发现问题，尝试修复
+    if (missingCells.length > 0 || mismatchCount > 0) {
+        console.log("尝试修复表格问题...");
+        initDPTable();
+        computeAllDPValues();
+        fillDPTable();
+        console.log("表格已重建并填充");
+    }
+
+    console.groupEnd();
 }
